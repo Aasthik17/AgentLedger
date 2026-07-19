@@ -38,9 +38,15 @@ used Codex" section and for `ledger self-report`'s summary.
   was overridden.
 
 ## Phase 4 — score
-- Built:
-- Decision made and why:
-- Codex proposed vs what we changed:
+- Built: Added ownership and incident configuration loading, per-file
+  `RiskScore` calculation, per-commit `TrustScore` rollups, flagged-hunk
+  reasons, and JSON stdin/stdout support for `ledger score`.
+- Decision made and why: Made risk scoring deterministic and transparent:
+  ownership criticality, diff size, and prior incidents are separately visible
+  inputs, while a commit's trust score is one minus its average file risk.
+- Codex proposed vs what we changed: With user approval, Codex added PyYAML to
+  load the required ownership configuration reliably; no other product or
+  architecture decision was overridden.
 
 ## Phase 5 — report
 - Built:

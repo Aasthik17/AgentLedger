@@ -8,6 +8,7 @@ import typer
 
 from agentledger.enrich import EnrichmentError, enrich_decision_units
 from agentledger.scan import DecisionUnit, GitScanError, scan_repository
+from agentledger.score import ScoreConfigError, score_decision_units
 
 app = typer.Typer(
     name="ledger",
@@ -59,9 +60,17 @@ def enrich(
 def score(
     demo: bool = typer.Option(False, "--demo", help="Use bundled sample data."),
 ) -> None:
-    """Calculate per-change risk and commit trust scores."""
+    """Calculate risk and trust scores from DecisionUnit JSON on stdin."""
     del demo
-    _not_implemented()
+    try:
+        serialized_units = json.load(sys.stdin)
+        decision_units = [DecisionUnit(**unit) for unit in serialized_units]
+        score_result = score_decision_units(decision_units)
+    except (json.JSONDecodeError, TypeError, ScoreConfigError) as error:
+        typer.echo(f"score failed: {error}", err=True)
+        raise typer.Exit(code=1) from error
+
+    typer.echo(json.dumps(asdict(score_result), indent=2))
 
 
 @app.command()
