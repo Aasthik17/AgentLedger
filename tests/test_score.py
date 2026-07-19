@@ -129,3 +129,16 @@ def test_score_command_reads_and_writes_json(ledger_config: Path, monkeypatch: p
     payload = json.loads(result.stdout)
     assert payload["risk_scores"][0]["risk_score"] == 0.135
     assert payload["trust_scores"][0]["overall_score"] == 0.865
+
+
+def test_project_ledger_data_flags_a_sample_incident_file() -> None:
+    project_ledger = Path(__file__).resolve().parents[1] / ".ledger"
+    result = score_decision_units(
+        [_unit("agentledger/enrich.py", "@@ -1 +1 @@\n-old\n+new\n")],
+        project_ledger,
+    )
+
+    assert result.risk_scores[0].criticality == 0.9
+    assert result.risk_scores[0].incident_history_hit is True
+    assert result.risk_scores[0].risk_score == 0.69
+    assert result.trust_scores[0].flagged_hunks[0].file_path == "agentledger/enrich.py"

@@ -1,0 +1,23 @@
+[
+  {
+    "id": "SAMPLE-INC-001",
+    "sample": true,
+    "files": ["agentledger/enrich.py"],
+    "summary": "Sample incident: a batched rationale response was associated with the wrong decision unit.",
+    "date": "2026-07-20"
+  },
+  {
+    "id": "SAMPLE-INC-002",
+    "sample": true,
+    "files": ["agentledger/score.py"],
+    "summary": "Sample incident: a scoring-weight change understated the review risk of a critical file.",
+    "date": "2026-07-20"
+  },
+  {
+    "id": "SAMPLE-INC-003",
+    "sample": true,
+    "files": ["agentledger/scan.py"],
+    "summary": "Sample incident: a Git metadata boundary caused a changed file to be omitted from an audit.",
+    "date": "2026-07-20"
+  }
+]

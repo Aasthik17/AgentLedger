@@ -70,7 +70,23 @@ used Codex" section and for `ledger self-report`'s summary.
   and mocked the API only in tests; no product or architecture decision was
   overridden.
 
-## Phase 7-9 — data, README, polish
+## Phase 7 — ledger data
+- Built: Added AgentLedger's own ownership map and three clearly-labelled
+  sample incidents for the enrichment, scoring, and scanning modules. The
+  records use real paths while remaining explicit that they are demo data.
+- Decision made and why: Marked the model-facing enrichment and trust-score
+  calculation modules as high criticality, so self-report visibly demonstrates
+  why an AI-authored change there merits a reviewer pass.
+- Codex proposed vs what we changed: Codex used real repository files and
+  explicit sample labels because no real production incident history exists;
+  no product or architecture decision was overridden.
+
+## Phase 8 — README
+- Built:
+- Decision made and why:
+- Codex proposed vs what we changed:
+
+## Phase 9 — polish
 - Built:
 - Decision made and why:
 - Codex proposed vs what we changed:

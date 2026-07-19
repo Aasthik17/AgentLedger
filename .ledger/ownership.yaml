@@ -1,0 +1,9 @@
+# AgentLedger's own ownership map for self-report dogfooding.
+paths:
+  "agentledger/enrich.py": { owner: "ai-safety", criticality: high }
+  "agentledger/score.py": { owner: "developer-product", criticality: high }
+  "agentledger/scan.py": { owner: "developer-product", criticality: medium }
+  "agentledger/cli.py": { owner: "developer-product", criticality: medium }
+  "agentledger/report.py": { owner: "developer-experience", criticality: low }
+  "tests/**": { owner: "developer-product", criticality: low }
+  "**": { owner: "unassigned", criticality: medium }
