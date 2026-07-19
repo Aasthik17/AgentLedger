@@ -10,7 +10,7 @@ import pytest
 from typer.testing import CliRunner
 
 from agentledger.cli import app
-from agentledger.scan import scan_repository
+from agentledger.scan import GitScanError, scan_repository
 
 
 def _git(repo: Path, *arguments: str, env: dict[str, str] | None = None) -> str:
@@ -107,3 +107,42 @@ def test_scan_command_serializes_decision_units(git_repo: dict[str, str | Path])
     payload = json.loads(result.stdout)
     assert {unit["file_path"] for unit in payload} == {"docs/guide.md", "src/app.py"}
     assert {unit["commit_sha"] for unit in payload} == {git_repo["second_sha"]}
+
+
+def test_scan_explains_when_path_is_not_a_git_repository(tmp_path: Path) -> None:
+    non_repository = tmp_path / "not-a-repository"
+    non_repository.mkdir()
+
+    with pytest.raises(GitScanError, match="not inside a Git repository"):
+        scan_repository(non_repository)
+
+    result = CliRunner().invoke(app, ["scan", str(non_repository)])
+
+    assert result.exit_code == 1
+    assert "scan failed:" in result.stdout
+    assert "not inside a Git repository" in result.stdout
+
+
+def test_scan_explains_when_repository_has_no_commits(tmp_path: Path) -> None:
+    repository = tmp_path / "empty-repository"
+    repository.mkdir()
+    _git(repository, "init")
+
+    with pytest.raises(GitScanError, match="has no commits to scan"):
+        scan_repository(repository)
+
+    result = CliRunner().invoke(app, ["scan", str(repository)])
+
+    assert result.exit_code == 1
+    assert "has no commits to scan" in result.stdout
+
+
+def test_demo_scan_runs_without_a_repository_or_api_key() -> None:
+    result = CliRunner().invoke(app, ["--demo", "scan"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert {unit["file_path"] for unit in payload} == {
+        "src/auth/session.py",
+        "docs/getting-started.md",
+    }

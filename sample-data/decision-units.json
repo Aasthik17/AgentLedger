@@ -1,0 +1,22 @@
+[
+  {
+    "commit_sha": "demo-auth-9f18c2",
+    "file_path": "src/auth/session.py",
+    "diff_hunk": "@@ -42,4 +42,6 @@ def validate_session(token):\n-    return decode(token)\n+    claims = decode(token)\n+    if claims.expires_at < now():\n+        raise ExpiredSessionError()\n+    return claims\n",
+    "commit_message": "Reject expired sessions before authorizing requests",
+    "author": "Synthetic Demo",
+    "timestamp": "2026-07-01T09:00:00Z",
+    "rationale": "Prevent expired session tokens from authorizing a request after their expiry time.",
+    "rationale_source": "commit_message"
+  },
+  {
+    "commit_sha": "demo-docs-48ad71",
+    "file_path": "docs/getting-started.md",
+    "diff_hunk": "@@ -8,3 +8,4 @@ Install\n-Run the command.\n+Run the command from the repository root.\n+The generated report is saved as report.html.\n",
+    "commit_message": "Clarify the local report command",
+    "author": "Synthetic Demo",
+    "timestamp": "2026-07-01T09:05:00Z",
+    "rationale": "Make the zero-setup report command easier for a new evaluator to run.",
+    "rationale_source": "commit_message"
+  }
+]

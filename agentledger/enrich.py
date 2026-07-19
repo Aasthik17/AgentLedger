@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 import json
+import os
 from typing import Any, Protocol, Sequence
 
 from openai import OpenAI
@@ -84,6 +85,10 @@ def enrich_decision_units(
     if not units_to_infer:
         return enriched
 
+    if client is None and not os.environ.get("OPENAI_API_KEY"):
+        raise EnrichmentError(
+            "OPENAI_API_KEY is not set. Set it before running `ledger enrich` or use `--demo`."
+        )
     responses_client = client or OpenAI()
     for batch in _batches(units_to_infer, batch_size):
         rationales = _infer_batch(responses_client, batch)

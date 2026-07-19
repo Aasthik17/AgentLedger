@@ -45,6 +45,10 @@ def scan_repository(path: str | Path, since: str | None = None) -> list[Decision
     Git's ``<ref>..HEAD`` range, so the referenced commit itself is excluded.
     """
     repo_root, pathspec = _resolve_repository_and_pathspec(path)
+    if not _repository_has_history(repo_root):
+        raise GitScanError(
+            f"Git repository {repo_root} has no commits to scan. Create an initial commit first."
+        )
     commits = _commits_for_range(repo_root, pathspec, since)
     decision_units: list[DecisionUnit] = []
 
@@ -69,8 +73,17 @@ def scan_repository(path: str | Path, since: str | None = None) -> list[Decision
 
 def _resolve_repository_and_pathspec(path: str | Path) -> tuple[Path, str | None]:
     target = Path(path).resolve()
+    if not target.exists():
+        raise GitScanError(f"Path does not exist: {target}")
     git_directory = target if target.is_dir() else target.parent
-    repo_root = Path(_git(git_directory, "rev-parse", "--show-toplevel").strip())
+    try:
+        repo_root = Path(_git(git_directory, "rev-parse", "--show-toplevel").strip())
+    except GitScanError as error:
+        if "not a git repository" in str(error).lower():
+            raise GitScanError(
+                f"{target} is not inside a Git repository. Run `ledger scan` from a repository path."
+            ) from error
+        raise
 
     try:
         relative_target = target.relative_to(repo_root)
@@ -80,6 +93,20 @@ def _resolve_repository_and_pathspec(path: str | Path) -> tuple[Path, str | None
     if relative_target == Path("."):
         return repo_root, None
     return repo_root, relative_target.as_posix()
+
+
+def _repository_has_history(repository: Path) -> bool:
+    """Return whether HEAD resolves without surfacing Git's empty-history stderr."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repository), "rev-parse", "--verify", "HEAD"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError as error:
+        raise GitScanError("Git is required to scan repository history.") from error
+    return result.returncode == 0
 
 
 def _commits_for_range(

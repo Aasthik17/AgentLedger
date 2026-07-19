@@ -93,6 +93,15 @@ used Codex" section and for `ledger self-report`'s summary.
   requested.
 
 ## Phase 9 — polish
-- Built:
-- Decision made and why:
-- Codex proposed vs what we changed:
+- Built: Added clear failures for non-Git paths, repositories with no commits,
+  and missing `OPENAI_API_KEY`; documented every command with help text; and
+  added a bundled, clearly-labelled synthetic sample-data audit that powers
+  `ledger --demo report` without Git access or an API call.
+- Decision made and why: Made the demo decision units already rationale-complete
+  so a judge can exercise scanning-shaped JSON, deterministic scoring, Rich
+  terminal output, and the self-contained HTML report without needing an API
+  credential or spending a model request.
+- Codex proposed vs what we changed: Codex implemented a global `--demo` form
+  in addition to command-local flags, preserving the README's required
+  `ledger --demo report` invocation; the human requested the final zero-setup
+  path and explicit error handling.

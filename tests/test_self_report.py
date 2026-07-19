@@ -113,3 +113,14 @@ def test_self_report_command_emits_readme_ready_markdown(monkeypatch, tmp_path: 
     assert "Wrote self-audit HTML report" in result.stdout
     assert "README-ready Markdown:" in result.stdout
     assert expected_markdown in result.stdout
+
+
+def test_self_report_demo_is_explicitly_synthetic(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    result = CliRunner().invoke(app, ["self-report", "--demo"])
+
+    assert result.exit_code == 0
+    assert "synthetic demo HTML report" in result.stdout
+    assert "does not emit self-report provenance Markdown" in result.stdout
+    assert (tmp_path / "demo-self-report.html").exists()

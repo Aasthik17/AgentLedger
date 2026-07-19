@@ -142,3 +142,12 @@ def test_project_ledger_data_flags_a_sample_incident_file() -> None:
     assert result.risk_scores[0].incident_history_hit is True
     assert result.risk_scores[0].risk_score == 0.69
     assert result.trust_scores[0].flagged_hunks[0].file_path == "agentledger/enrich.py"
+
+
+def test_demo_score_uses_bundled_synthetic_configuration() -> None:
+    result = CliRunner().invoke(app, ["--demo", "score"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["risk_scores"][0]["incident_history_hit"] is True
+    assert payload["trust_scores"][0]["flagged_hunks"][0]["file_path"] == "src/auth/session.py"

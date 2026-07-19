@@ -112,3 +112,23 @@ def test_enrich_command_reads_and_writes_decision_unit_json() -> None:
     payload = json.loads(result.stdout)
     assert payload[0]["rationale"] == "A clear change because it rejects invalid requests"
     assert payload[0]["rationale_source"] == "commit_message"
+
+
+def test_enrich_explains_when_openai_key_is_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    result = CliRunner().invoke(app, ["enrich"], input=json.dumps([asdict(_unit("Fix bug"))]))
+
+    assert result.exit_code == 1
+    assert "OPENAI_API_KEY is not set" in result.stdout
+    assert "Traceback" not in result.stdout
+
+
+def test_demo_enrich_never_requires_an_openai_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    result = CliRunner().invoke(app, ["enrich", "--demo"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert all(unit["rationale"] for unit in payload)

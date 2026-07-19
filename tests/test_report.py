@@ -103,3 +103,17 @@ def test_report_command_renders_terminal_and_html_output(tmp_path: Path) -> None
     assert "AgentLedger audit summary" in result.stdout
     assert f"Wrote HTML report to {output_path}" in result.stdout
     assert "Decision trail report" in output_path.read_text(encoding="utf-8")
+
+
+def test_global_demo_report_needs_no_json_input_or_openai_key(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    output_path = tmp_path / "demo-report.html"
+
+    result = CliRunner().invoke(app, ["--demo", "report", "--out", str(output_path)])
+
+    assert result.exit_code == 0
+    assert "Wrote synthetic demo HTML report" in result.stdout
+    report_html = output_path.read_text(encoding="utf-8")
+    assert "src/auth/session.py" in report_html
+    assert "risk-card risk-high" in report_html
+    assert "risk-card risk-low" in report_html

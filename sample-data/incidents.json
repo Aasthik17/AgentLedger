@@ -1,0 +1,9 @@
+[
+  {
+    "id": "SAMPLE-INC-001",
+    "sample": true,
+    "files": ["src/auth/session.py"],
+    "summary": "Synthetic example: expired session was accepted after expiry.",
+    "date": "2026-06-12"
+  }
+]

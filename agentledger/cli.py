@@ -9,6 +9,7 @@ from typing import Sequence
 
 import typer
 
+from agentledger.demo import demo_decision_units_json, load_demo_decision_units, score_demo_decision_units
 from agentledger.enrich import EnrichmentError, enrich_decision_units
 from agentledger.report import render_terminal_summary, write_html_report
 from agentledger.scan import DecisionUnit, GitScanError, scan_repository
@@ -21,9 +22,28 @@ app = typer.Typer(
 )
 
 
+@app.callback()
+def application_options(
+    ctx: typer.Context,
+    demo: bool = typer.Option(
+        False,
+        "--demo",
+        help="Run a bundled synthetic audit without Git or an OpenAI API key.",
+    ),
+) -> None:
+    """Configure options shared by Ledger commands."""
+    ctx.ensure_object(dict)
+    ctx.obj["demo"] = demo
+
+
 def _not_implemented() -> None:
     """Keep Phase 1 commands runnable while later pipeline phases are built."""
     typer.echo("not implemented")
+
+
+def _demo_enabled(ctx: typer.Context, command_demo: bool) -> bool:
+    """Support both `ledger --demo report` and `ledger report --demo`."""
+    return command_demo or bool(ctx.obj and ctx.obj.get("demo"))
 
 
 class SelfReportError(RuntimeError):
@@ -160,12 +180,21 @@ through deterministic ownership/incident scoring and the final audit report.
 
 @app.command()
 def scan(
-    path: str = typer.Argument(..., help="Repository path to inspect."),
+    ctx: typer.Context,
+    path: str | None = typer.Argument(None, help="Repository path to inspect."),
     since: str | None = typer.Option(None, "--since", help="Earliest git ref to include."),
-    demo: bool = typer.Option(False, "--demo", help="Use bundled sample data."),
+    demo: bool = typer.Option(False, "--demo", help="Use bundled synthetic data instead of Git."),
 ) -> None:
     """Collect decision units from git history."""
-    del demo
+    if _demo_enabled(ctx, demo):
+        if since:
+            typer.echo("scan failed: --since cannot be combined with --demo.", err=True)
+            raise typer.Exit(code=1)
+        typer.echo(demo_decision_units_json())
+        return
+    if path is None:
+        typer.echo("scan failed: PATH is required unless --demo is used.", err=True)
+        raise typer.Exit(code=1)
     try:
         decision_units = scan_repository(path, since=since)
     except GitScanError as error:
@@ -177,10 +206,13 @@ def scan(
 
 @app.command()
 def enrich(
-    demo: bool = typer.Option(False, "--demo", help="Use bundled sample data."),
+    ctx: typer.Context,
+    demo: bool = typer.Option(False, "--demo", help="Use bundled synthetic data without an API call."),
 ) -> None:
     """Infer missing change rationales with GPT-5.6 from JSON stdin."""
-    del demo
+    if _demo_enabled(ctx, demo):
+        typer.echo(demo_decision_units_json())
+        return
     try:
         serialized_units = json.load(sys.stdin)
         decision_units = [DecisionUnit(**unit) for unit in serialized_units]
@@ -194,10 +226,13 @@ def enrich(
 
 @app.command()
 def score(
-    demo: bool = typer.Option(False, "--demo", help="Use bundled sample data."),
+    ctx: typer.Context,
+    demo: bool = typer.Option(False, "--demo", help="Score bundled synthetic data instead of stdin."),
 ) -> None:
     """Calculate risk and trust scores from DecisionUnit JSON on stdin."""
-    del demo
+    if _demo_enabled(ctx, demo):
+        typer.echo(json.dumps(asdict(score_demo_decision_units()), indent=2))
+        return
     try:
         serialized_units = json.load(sys.stdin)
         decision_units = [DecisionUnit(**unit) for unit in serialized_units]
@@ -211,11 +246,19 @@ def score(
 
 @app.command()
 def report(
+    ctx: typer.Context,
     out: str = typer.Option("report.html", "--out", help="HTML report output path."),
-    demo: bool = typer.Option(False, "--demo", help="Use bundled sample data."),
+    demo: bool = typer.Option(False, "--demo", help="Render the bundled synthetic audit instead of stdin."),
 ) -> None:
     """Render terminal and HTML reports from score-command JSON on stdin."""
-    del demo
+    if _demo_enabled(ctx, demo):
+        result = score_demo_decision_units()
+        render_terminal_summary(result.decision_units, result.risk_scores, result.trust_scores)
+        output_path = write_html_report(
+            result.decision_units, result.risk_scores, result.trust_scores, out
+        )
+        typer.echo(f"Wrote synthetic demo HTML report to {output_path}")
+        return
     try:
         score_payload = json.load(sys.stdin)
         decision_units = [DecisionUnit(**unit) for unit in score_payload["decision_units"]]
@@ -240,10 +283,19 @@ def report(
 
 @app.command(name="self-report")
 def self_report(
-    demo: bool = typer.Option(False, "--demo", help="Use bundled sample data."),
+    ctx: typer.Context,
+    demo: bool = typer.Option(False, "--demo", help="Render synthetic data; does not audit this repository."),
 ) -> None:
     """Run the complete pipeline against AgentLedger's own history."""
-    del demo
+    if _demo_enabled(ctx, demo):
+        result = score_demo_decision_units()
+        render_terminal_summary(result.decision_units, result.risk_scores, result.trust_scores)
+        output_path = write_html_report(
+            result.decision_units, result.risk_scores, result.trust_scores, "demo-self-report.html"
+        )
+        typer.echo(f"Wrote synthetic demo HTML report to {output_path}")
+        typer.echo("Demo mode does not emit self-report provenance Markdown.")
+        return
     try:
         result = run_self_report()
     except (GitScanError, EnrichmentError, ScoreConfigError, SelfReportError, ValueError) as error:

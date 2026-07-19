@@ -1,0 +1,5 @@
+# Synthetic demo ownership map. It is intentionally not AgentLedger's real map.
+paths:
+  "src/auth/**": { owner: "synthetic-security", criticality: high }
+  "docs/**": { owner: "synthetic-docs", criticality: low }
+  "**": { owner: "synthetic-unassigned", criticality: medium }
