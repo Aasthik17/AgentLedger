@@ -49,9 +49,15 @@ used Codex" section and for `ledger self-report`'s summary.
   architecture decision was overridden.
 
 ## Phase 5 — report
-- Built:
-- Decision made and why:
-- Codex proposed vs what we changed:
+- Built: Added a single-file HTML audit report with inline CSS and a matching
+  Rich terminal summary. Both show each commit's trust score, rationale trail,
+  diff hunks, and explicit flagged-hunk reasons.
+- Decision made and why: Used strongly separated red high-risk and green
+  low-risk cards/panels so the review priority reads immediately in a terminal
+  recording or a demo-video frame.
+- Codex proposed vs what we changed: Codex preserved DecisionUnits in the
+  score command's JSON envelope so the report can render the full pipeline
+  trail; no product or architecture decision was overridden.
 
 ## Phase 6 — self-report
 - Built:

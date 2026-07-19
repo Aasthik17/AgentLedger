@@ -56,6 +56,7 @@ class TrustScore:
 class ScoreResult:
     """The per-file and per-commit outputs of one scoring pass."""
 
+    decision_units: list[DecisionUnit]
     risk_scores: list[RiskScore]
     trust_scores: list[TrustScore]
 
@@ -100,6 +101,7 @@ def score_decision_units(
         _risk_score_for_unit(unit, ownership_rules, incident_files) for unit in decision_units
     ]
     return ScoreResult(
+        decision_units=list(decision_units),
         risk_scores=risk_scores,
         trust_scores=_trust_scores_for_commits(decision_units, risk_scores),
     )

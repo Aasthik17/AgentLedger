@@ -7,8 +7,9 @@ import sys
 import typer
 
 from agentledger.enrich import EnrichmentError, enrich_decision_units
+from agentledger.report import render_terminal_summary, write_html_report
 from agentledger.scan import DecisionUnit, GitScanError, scan_repository
-from agentledger.score import ScoreConfigError, score_decision_units
+from agentledger.score import FlaggedHunk, RiskScore, ScoreConfigError, TrustScore, score_decision_units
 
 app = typer.Typer(
     name="ledger",
@@ -78,9 +79,28 @@ def report(
     out: str = typer.Option("report.html", "--out", help="HTML report output path."),
     demo: bool = typer.Option(False, "--demo", help="Use bundled sample data."),
 ) -> None:
-    """Render the terminal and HTML audit report."""
-    del out, demo
-    _not_implemented()
+    """Render terminal and HTML reports from score-command JSON on stdin."""
+    del demo
+    try:
+        score_payload = json.load(sys.stdin)
+        decision_units = [DecisionUnit(**unit) for unit in score_payload["decision_units"]]
+        risk_scores = [RiskScore(**score) for score in score_payload["risk_scores"]]
+        trust_scores = [
+            TrustScore(
+                commit_sha=score["commit_sha"],
+                overall_score=score["overall_score"],
+                flagged_hunks=[FlaggedHunk(**flag) for flag in score["flagged_hunks"]],
+                summary=score["summary"],
+            )
+            for score in score_payload["trust_scores"]
+        ]
+        render_terminal_summary(decision_units, risk_scores, trust_scores)
+        output_path = write_html_report(decision_units, risk_scores, trust_scores, out)
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
+        typer.echo(f"report failed: {error}", err=True)
+        raise typer.Exit(code=1) from error
+
+    typer.echo(f"Wrote HTML report to {output_path}")
 
 
 @app.command(name="self-report")
