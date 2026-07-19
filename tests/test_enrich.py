@@ -1,0 +1,114 @@
+"""Unit tests for batched GPT-5.6 rationale enrichment."""
+
+from __future__ import annotations
+
+from dataclasses import asdict
+import json
+from types import SimpleNamespace
+
+import pytest
+from typer.testing import CliRunner
+
+from agentledger.cli import app
+from agentledger.enrich import EnrichmentError, enrich_decision_units
+from agentledger.scan import DecisionUnit
+
+
+def _unit(commit_message: str, *, file_path: str = "src/service.py") -> DecisionUnit:
+    return DecisionUnit(
+        commit_sha="abc123",
+        file_path=file_path,
+        diff_hunk="@@ -1 +1 @@\n-old\n+new\n",
+        commit_message=commit_message,
+        author="Test Author",
+        timestamp="2026-01-01T00:00:00Z",
+        rationale=None,
+        rationale_source="commit_message",
+    )
+
+
+class FakeResponses:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    def create(self, **kwargs: object) -> SimpleNamespace:
+        self.calls.append(kwargs)
+        request = json.loads(kwargs["input"][1]["content"])
+        rationales = [
+            {
+                "unit_id": unit["unit_id"],
+                "rationale": f"Inferred rationale for {unit['file_path']}.",
+            }
+            for unit in request["decision_units"]
+        ]
+        return SimpleNamespace(output_text=json.dumps({"rationales": rationales}))
+
+
+class FakeClient:
+    def __init__(self) -> None:
+        self.responses = FakeResponses()
+
+
+def test_enrich_batches_unclear_units_and_preserves_clear_commit_rationales() -> None:
+    units = [
+        _unit("Update request handling", file_path="src/requests.py"),
+        _unit(
+            "Harden request validation\n\nReject empty payloads before processing requests.",
+            file_path="src/validation.py",
+        ),
+        _unit("Refactor worker", file_path="src/worker.py"),
+        _unit("Fix bug", file_path="src/session.py"),
+    ]
+    client = FakeClient()
+
+    enriched = enrich_decision_units(units, client=client, batch_size=2)
+
+    assert len(client.responses.calls) == 2
+    assert enriched[0].rationale == "Inferred rationale for src/requests.py."
+    assert enriched[0].rationale_source == "gpt-5.6-inferred"
+    assert enriched[1].rationale == "Reject empty payloads before processing requests."
+    assert enriched[1].rationale_source == "commit_message"
+    assert enriched[2].rationale_source == "gpt-5.6-inferred"
+    assert enriched[3].rationale_source == "gpt-5.6-inferred"
+
+    first_request = client.responses.calls[0]
+    assert first_request["model"] == "gpt-5.6"
+    assert first_request["text"]["format"]["type"] == "json_schema"
+    assert first_request["text"]["format"]["strict"] is True
+
+
+def test_enrich_is_idempotent_for_existing_rationales() -> None:
+    existing = DecisionUnit(
+        **{
+            **asdict(_unit("Fix bug")),
+            "rationale": "A prior enrichment result.",
+            "rationale_source": "gpt-5.6-inferred",
+        }
+    )
+    client = FakeClient()
+
+    assert enrich_decision_units([existing], client=client) == [existing]
+    assert client.responses.calls == []
+
+
+def test_enrich_rejects_incomplete_structured_output() -> None:
+    class IncompleteResponses:
+        def create(self, **kwargs: object) -> SimpleNamespace:
+            del kwargs
+            return SimpleNamespace(output_text='{"rationales": []}')
+
+    client = SimpleNamespace(responses=IncompleteResponses())
+
+    with pytest.raises(EnrichmentError, match="exactly one rationale"):
+        enrich_decision_units([_unit("Fix bug")], client=client)
+
+
+def test_enrich_command_reads_and_writes_decision_unit_json() -> None:
+    unit = _unit("A clear change because it rejects invalid requests")
+
+    result = CliRunner().invoke(app, ["enrich"], input=json.dumps([asdict(unit)]))
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload[0]["rationale"] == "A clear change because it rejects invalid requests"
+    assert payload[0]["rationale_source"] == "commit_message"

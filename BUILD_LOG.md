@@ -26,9 +26,16 @@ used Codex" section and for `ledger self-report`'s summary.
   product or architecture decision was overridden.
 
 ## Phase 3 — enrich
-- Built:
-- Decision made and why:
-- Codex proposed vs what we changed:
+- Built: Added batched GPT-5.6 rationale enrichment through the Responses API,
+  using strict JSON-schema structured output and JSON stdin/stdout for the CLI.
+  Clear commit-message rationales are retained locally; unclear units are
+  enriched in batches and marked `gpt-5.6-inferred`.
+- Decision made and why: Used one strict structured-output response per small
+  batch rather than a request per diff, so the pipeline is both reliable to
+  parse and practical for a commit range with many changed files.
+- Codex proposed vs what we changed: Codex used the requested GPT-5.6 Responses
+  API and local commit-message heuristic; no product or architecture decision
+  was overridden.
 
 ## Phase 4 — score
 - Built:

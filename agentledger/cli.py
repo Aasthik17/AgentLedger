@@ -2,10 +2,12 @@
 
 from dataclasses import asdict
 import json
+import sys
 
 import typer
 
-from agentledger.scan import GitScanError, scan_repository
+from agentledger.enrich import EnrichmentError, enrich_decision_units
+from agentledger.scan import DecisionUnit, GitScanError, scan_repository
 
 app = typer.Typer(
     name="ledger",
@@ -40,9 +42,17 @@ def scan(
 def enrich(
     demo: bool = typer.Option(False, "--demo", help="Use bundled sample data."),
 ) -> None:
-    """Infer missing change rationales with GPT-5.6."""
+    """Infer missing change rationales with GPT-5.6 from JSON stdin."""
     del demo
-    _not_implemented()
+    try:
+        serialized_units = json.load(sys.stdin)
+        decision_units = [DecisionUnit(**unit) for unit in serialized_units]
+        enriched_units = enrich_decision_units(decision_units)
+    except (json.JSONDecodeError, TypeError, EnrichmentError) as error:
+        typer.echo(f"enrich failed: {error}", err=True)
+        raise typer.Exit(code=1) from error
+
+    typer.echo(json.dumps([asdict(unit) for unit in enriched_units], indent=2))
 
 
 @app.command()
