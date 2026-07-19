@@ -60,9 +60,15 @@ used Codex" section and for `ledger self-report`'s summary.
   trail; no product or architecture decision was overridden.
 
 ## Phase 6 — self-report
-- Built:
-- Decision made and why:
-- Codex proposed vs what we changed:
+- Built: Added `ledger self-report`, which runs scan, enrich, score, and report
+  against AgentLedger's own first-commit-to-HEAD history, writes a self-audit
+  HTML file, and emits README-ready Markdown from real commits and BUILD_LOG.
+- Decision made and why: Kept the Markdown tied to the actual build trail and
+  phase log, so the Devpost provenance story is auditable rather than a
+  fabricated company scenario.
+- Codex proposed vs what we changed: Codex used the requested dogfooding path
+  and mocked the API only in tests; no product or architecture decision was
+  overridden.
 
 ## Phase 7-9 — data, README, polish
 - Built:
