@@ -82,9 +82,15 @@ used Codex" section and for `ledger self-report`'s summary.
   no product or architecture decision was overridden.
 
 ## Phase 8 — README
-- Built:
-- Decision made and why:
-- Codex proposed vs what we changed:
+- Built: Completed every README submission section with the real pipeline,
+  commit trail, and GPT-5.6 usage story, while leaving the feedback-session ID
+  and demo-video link for manual submission-time entry.
+- Decision made and why: Grounded the README's provenance narrative in
+  BUILD_LOG.md and the self-report's real Git-history summary instead of
+  inventing a company or a production incident record.
+- Codex proposed vs what we changed: Codex drafted the README from the recorded
+  build trail; the human-owned session ID and demo URL remain placeholders as
+  requested.
 
 ## Phase 9 — polish
 - Built:
