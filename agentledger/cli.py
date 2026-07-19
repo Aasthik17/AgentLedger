@@ -1,6 +1,11 @@
 """Command-line interface for AgentLedger."""
 
+from dataclasses import asdict
+import json
+
 import typer
+
+from agentledger.scan import GitScanError, scan_repository
 
 app = typer.Typer(
     name="ledger",
@@ -21,8 +26,14 @@ def scan(
     demo: bool = typer.Option(False, "--demo", help="Use bundled sample data."),
 ) -> None:
     """Collect decision units from git history."""
-    del path, since, demo
-    _not_implemented()
+    del demo
+    try:
+        decision_units = scan_repository(path, since=since)
+    except GitScanError as error:
+        typer.echo(f"scan failed: {error}", err=True)
+        raise typer.Exit(code=1) from error
+
+    typer.echo(json.dumps([asdict(unit) for unit in decision_units], indent=2))
 
 
 @app.command()

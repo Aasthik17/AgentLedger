@@ -15,9 +15,15 @@ used Codex" section and for `ledger self-report`'s summary.
   and phase order; no product or architecture proposal was overridden.
 
 ## Phase 2 — scan
-- Built:
-- Decision made and why:
-- Codex proposed vs what we changed:
+- Built: Implemented git-history scanning into one `DecisionUnit` per changed
+  file per commit, with commit metadata, full patch text, a configurable
+  large-diff truncation boundary, `--since` range support, and JSON CLI output.
+- Decision made and why: Used Git's native commit/file/diff plumbing instead
+  of parsing a combined patch stream, which keeps each decision unit reliably
+  scoped to exactly one changed file.
+- Codex proposed vs what we changed: Codex followed the requested range
+  semantics (`<since>..HEAD`) and tested against a throwaway repository; no
+  product or architecture decision was overridden.
 
 ## Phase 3 — enrich
 - Built:
