@@ -38,8 +38,6 @@ git clone <repo-url>
 cd codex-ledger
 pip install -e .
 export OPENAI_API_KEY=<your key>
-# Or, use OpenRouter's GPT-5.6 route without saving a key in the repository:
-export OPENROUTER_API_KEY=<your OpenRouter key>
 ```
 
 ## Supported platforms

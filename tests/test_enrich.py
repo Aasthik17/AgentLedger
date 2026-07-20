@@ -11,7 +11,6 @@ import pytest
 from typer.testing import CliRunner
 
 from agentledger.cli import app
-from agentledger import enrich
 from agentledger.enrich import EnrichmentError, enrich_decision_units
 from agentledger.scan import DecisionUnit
 
@@ -135,46 +134,19 @@ def test_enrich_command_reads_and_writes_decision_unit_json() -> None:
 
 def test_enrich_explains_when_openai_key_is_missing(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
 
     result = CliRunner().invoke(app, ["enrich"], input=json.dumps([asdict(_unit("Fix bug"))]))
 
     assert result.exit_code == 1
-    assert "Set OPENAI_API_KEY or OPENROUTER_API_KEY" in result.stdout
+    assert "OPENAI_API_KEY is not set" in result.stdout
     assert "Traceback" not in result.stdout
 
 
 def test_demo_enrich_never_requires_an_openai_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
 
     result = CliRunner().invoke(app, ["enrich", "--demo"])
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert all(unit["rationale"] for unit in payload)
-
-
-def test_enrich_uses_openrouter_gpt_5_6_without_storing_a_key(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    captured: dict[str, object] = {}
-
-    class OpenRouterClient:
-        def __init__(self, **kwargs: object) -> None:
-            captured.update(kwargs)
-            self.responses = FakeResponses()
-            captured["responses"] = self.responses
-
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter-key")
-    monkeypatch.setattr(enrich, "OpenAI", OpenRouterClient)
-
-    enriched = enrich_decision_units([_unit("Fix bug")])
-
-    assert captured["api_key"] == "test-openrouter-key"
-    assert captured["base_url"] == "https://openrouter.ai/api/v1"
-    responses = captured["responses"]
-    assert isinstance(responses, FakeResponses)
-    assert responses.calls[0]["model"] == "openai/gpt-5.6-sol"
-    assert enriched[0].rationale_source == "gpt-5.6-inferred"

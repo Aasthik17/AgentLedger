@@ -13,8 +13,6 @@ from agentledger.scan import DecisionUnit
 
 
 MODEL = "gpt-5.6"
-OPENROUTER_MODEL = "openai/gpt-5.6-sol"
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_BATCH_SIZE = 6
 MAX_RATIONALE_OUTPUT_TOKENS = 512
 
@@ -88,9 +86,13 @@ def enrich_decision_units(
     if not units_to_infer:
         return enriched
 
-    responses_client, model = _responses_client_and_model(client)
+    if client is None and not os.environ.get("OPENAI_API_KEY"):
+        raise EnrichmentError(
+            "OPENAI_API_KEY is not set. Set it before running `ledger enrich` or use `--demo`."
+        )
+    responses_client = client or OpenAI()
     for batch in _batches(units_to_infer, batch_size):
-        rationales = _infer_batch(responses_client, batch, model)
+        rationales = _infer_batch(responses_client, batch)
         for index, unit in batch:
             enriched[index] = replace(
                 unit,
@@ -99,29 +101,6 @@ def enrich_decision_units(
             )
 
     return enriched
-
-
-def _responses_client_and_model(
-    client: ResponsesClient | None,
-) -> tuple[ResponsesClient, str]:
-    """Select direct OpenAI or the OpenRouter-compatible Responses endpoint."""
-    if client is not None:
-        return client, MODEL
-
-    openai_key = os.environ.get("OPENAI_API_KEY")
-    if openai_key:
-        return OpenAI(api_key=openai_key), MODEL
-
-    openrouter_key = os.environ.get("OPENROUTER_API_KEY")
-    if openrouter_key:
-        return (
-            OpenAI(api_key=openrouter_key, base_url=OPENROUTER_BASE_URL),
-            OPENROUTER_MODEL,
-        )
-
-    raise EnrichmentError(
-        "No API key is set. Set OPENAI_API_KEY or OPENROUTER_API_KEY, or use `--demo`."
-    )
 
 
 def _commit_message_explains_why(message: str) -> bool:
@@ -147,7 +126,7 @@ def _batches(
 
 
 def _infer_batch(
-    client: ResponsesClient, batch: list[tuple[int, DecisionUnit]], model: str
+    client: ResponsesClient, batch: list[tuple[int, DecisionUnit]]
 ) -> dict[str, str]:
     requested_units = [
         {
@@ -160,7 +139,7 @@ def _infer_batch(
     ]
     try:
         response = client.responses.create(
-            model=model,
+            model=MODEL,
             input=[
                 {"role": "system", "content": SYSTEM_INSTRUCTIONS},
                 {"role": "user", "content": json.dumps({"decision_units": requested_units})},
