@@ -7,13 +7,16 @@ import json
 import os
 from typing import Any, Protocol, Sequence
 
-from openai import OpenAI
+from openai import APIError, OpenAI
 
 from agentledger.scan import DecisionUnit
 
 
 MODEL = "gpt-5.6"
+OPENROUTER_MODEL = "openai/gpt-5.6-sol"
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_BATCH_SIZE = 6
+MAX_RATIONALE_OUTPUT_TOKENS = 512
 
 
 class EnrichmentError(RuntimeError):
@@ -85,13 +88,9 @@ def enrich_decision_units(
     if not units_to_infer:
         return enriched
 
-    if client is None and not os.environ.get("OPENAI_API_KEY"):
-        raise EnrichmentError(
-            "OPENAI_API_KEY is not set. Set it before running `ledger enrich` or use `--demo`."
-        )
-    responses_client = client or OpenAI()
+    responses_client, model = _responses_client_and_model(client)
     for batch in _batches(units_to_infer, batch_size):
-        rationales = _infer_batch(responses_client, batch)
+        rationales = _infer_batch(responses_client, batch, model)
         for index, unit in batch:
             enriched[index] = replace(
                 unit,
@@ -100,6 +99,29 @@ def enrich_decision_units(
             )
 
     return enriched
+
+
+def _responses_client_and_model(
+    client: ResponsesClient | None,
+) -> tuple[ResponsesClient, str]:
+    """Select direct OpenAI or the OpenRouter-compatible Responses endpoint."""
+    if client is not None:
+        return client, MODEL
+
+    openai_key = os.environ.get("OPENAI_API_KEY")
+    if openai_key:
+        return OpenAI(api_key=openai_key), MODEL
+
+    openrouter_key = os.environ.get("OPENROUTER_API_KEY")
+    if openrouter_key:
+        return (
+            OpenAI(api_key=openrouter_key, base_url=OPENROUTER_BASE_URL),
+            OPENROUTER_MODEL,
+        )
+
+    raise EnrichmentError(
+        "No API key is set. Set OPENAI_API_KEY or OPENROUTER_API_KEY, or use `--demo`."
+    )
 
 
 def _commit_message_explains_why(message: str) -> bool:
@@ -125,7 +147,7 @@ def _batches(
 
 
 def _infer_batch(
-    client: ResponsesClient, batch: list[tuple[int, DecisionUnit]]
+    client: ResponsesClient, batch: list[tuple[int, DecisionUnit]], model: str
 ) -> dict[str, str]:
     requested_units = [
         {
@@ -136,21 +158,26 @@ def _infer_batch(
         }
         for index, unit in batch
     ]
-    response = client.responses.create(
-        model=MODEL,
-        input=[
-            {"role": "system", "content": SYSTEM_INSTRUCTIONS},
-            {"role": "user", "content": json.dumps({"decision_units": requested_units})},
-        ],
-        text={
-            "format": {
-                "type": "json_schema",
-                "name": "decision_unit_rationales",
-                "strict": True,
-                "schema": RATIONALE_BATCH_SCHEMA,
-            }
-        },
-    )
+    try:
+        response = client.responses.create(
+            model=model,
+            input=[
+                {"role": "system", "content": SYSTEM_INSTRUCTIONS},
+                {"role": "user", "content": json.dumps({"decision_units": requested_units})},
+            ],
+            max_output_tokens=MAX_RATIONALE_OUTPUT_TOKENS,
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "decision_unit_rationales",
+                    "strict": True,
+                    "schema": RATIONALE_BATCH_SCHEMA,
+                }
+            },
+        )
+    except APIError as error:
+        message = getattr(error, "message", None) or "the provider rejected the request"
+        raise EnrichmentError(f"GPT-5.6 enrichment request failed: {message}") from error
     return _parse_rationales(response.output_text, {str(index) for index, _ in batch})
 
 

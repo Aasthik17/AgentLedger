@@ -6,10 +6,12 @@ from dataclasses import asdict
 import json
 from types import SimpleNamespace
 
+import httpx
 import pytest
 from typer.testing import CliRunner
 
 from agentledger.cli import app
+from agentledger import enrich
 from agentledger.enrich import EnrichmentError, enrich_decision_units
 from agentledger.scan import DecisionUnit
 
@@ -73,6 +75,7 @@ def test_enrich_batches_unclear_units_and_preserves_clear_commit_rationales() ->
 
     first_request = client.responses.calls[0]
     assert first_request["model"] == "gpt-5.6"
+    assert first_request["max_output_tokens"] == 512
     assert first_request["text"]["format"]["type"] == "json_schema"
     assert first_request["text"]["format"]["strict"] is True
 
@@ -103,6 +106,22 @@ def test_enrich_rejects_incomplete_structured_output() -> None:
         enrich_decision_units([_unit("Fix bug")], client=client)
 
 
+def test_enrich_wraps_provider_errors_without_exposing_a_traceback() -> None:
+    class CreditLimitedResponses:
+        def create(self, **kwargs: object) -> SimpleNamespace:
+            del kwargs
+            request = httpx.Request("POST", "https://provider.example/responses")
+            response = httpx.Response(402, request=request)
+            from openai import APIStatusError
+
+            raise APIStatusError("credit limit reached", response=response, body={})
+
+    client = SimpleNamespace(responses=CreditLimitedResponses())
+
+    with pytest.raises(EnrichmentError, match="GPT-5.6 enrichment request failed: credit limit"):
+        enrich_decision_units([_unit("Fix bug")], client=client)
+
+
 def test_enrich_command_reads_and_writes_decision_unit_json() -> None:
     unit = _unit("A clear change because it rejects invalid requests")
 
@@ -116,19 +135,46 @@ def test_enrich_command_reads_and_writes_decision_unit_json() -> None:
 
 def test_enrich_explains_when_openai_key_is_missing(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
 
     result = CliRunner().invoke(app, ["enrich"], input=json.dumps([asdict(_unit("Fix bug"))]))
 
     assert result.exit_code == 1
-    assert "OPENAI_API_KEY is not set" in result.stdout
+    assert "Set OPENAI_API_KEY or OPENROUTER_API_KEY" in result.stdout
     assert "Traceback" not in result.stdout
 
 
 def test_demo_enrich_never_requires_an_openai_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
 
     result = CliRunner().invoke(app, ["enrich", "--demo"])
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert all(unit["rationale"] for unit in payload)
+
+
+def test_enrich_uses_openrouter_gpt_5_6_without_storing_a_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class OpenRouterClient:
+        def __init__(self, **kwargs: object) -> None:
+            captured.update(kwargs)
+            self.responses = FakeResponses()
+            captured["responses"] = self.responses
+
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter-key")
+    monkeypatch.setattr(enrich, "OpenAI", OpenRouterClient)
+
+    enriched = enrich_decision_units([_unit("Fix bug")])
+
+    assert captured["api_key"] == "test-openrouter-key"
+    assert captured["base_url"] == "https://openrouter.ai/api/v1"
+    responses = captured["responses"]
+    assert isinstance(responses, FakeResponses)
+    assert responses.calls[0]["model"] == "openai/gpt-5.6-sol"
+    assert enriched[0].rationale_source == "gpt-5.6-inferred"
